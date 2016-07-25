@@ -5,10 +5,12 @@ using System.Collections.Generic;
 
 public class TileWindow : EditorWindow
 {
-    static int WINDOW_WIDTH = 350;
+    static int WINDOW_WIDTH = 650;
     static int WINDOW_HEIGHT = 500;
+    static int CONTROL_MAX_WIDTH = 350;
     static Vector2Int MAX_VECTOR2 = new Vector2Int(Int32.MaxValue, Int32.MaxValue);
 
+    RenderTexture _offscreenTexture;
     Texture2D _spriteFile;
     int _spriteWidth;
     int _spriteHeight;
@@ -31,15 +33,58 @@ public class TileWindow : EditorWindow
         window.minSize = new Vector2(WINDOW_WIDTH, WINDOW_HEIGHT);
     }
 
+    private void BuildNewTexture(Texture2D texture)
+    {
+        if (texture == null)
+        {
+            Debug.LogError("Attempting to build offscreen texture with no loaded texture.");
+            return;
+        }
+        Debug.LogFormat("{0}, {1}", texture.width, texture.height);
+
+        var cameraObj = new GameObject("Camera");
+        var camera = cameraObj.AddComponent<Camera>();
+        camera.transform.position = new Vector3(0.0f, 0.0f, -10.0f);
+        _offscreenTexture = new RenderTexture(texture.width, texture.height, 24);
+        _offscreenTexture.generateMips = false;
+        _offscreenTexture.filterMode = FilterMode.Point;
+        camera.targetTexture = _offscreenTexture;
+        camera.orthographic = true;
+        camera.aspect = (float)texture.width / texture.height;
+        camera.orthographicSize = texture.width / 2.0f;
+        camera.backgroundColor = Color.clear;
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        Debug.LogFormat("{0}, {1}, {2}", camera.orthographicSize, camera.pixelWidth, camera.pixelHeight);
+        var spriteObj = new GameObject("TextureObj");
+        spriteObj.transform.position = Vector3.zero;
+        spriteObj.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
+        var renderer = spriteObj.AddComponent<SpriteRenderer>();
+        var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 1.0f);
+        Debug.LogFormat("{0}x{1}", sprite.rect.width, sprite.rect.height);
+        renderer.sprite = sprite;
+        camera.Render();
+        camera.targetTexture = null;
+
+        DestroyImmediate(cameraObj);
+        DestroyImmediate(spriteObj);
+    }
+
     private void OnGUI()
     {
+
         // Texture Settings
         EditorGUILayout.LabelField("Texture Information", EditorStyles.boldLabel);
-        var newSpriteFile = EditorGUILayout.ObjectField("Texture", _spriteFile, typeof(Texture2D), false) as Texture2D;
+        var newSpriteFile = EditorGUILayout.ObjectField("Texture", _spriteFile, typeof(Texture2D), false, GUILayout.Width(CONTROL_MAX_WIDTH)) as Texture2D;
         if (_spriteFile != newSpriteFile && newSpriteFile != null)
         {
             _defaultSpriteName = newSpriteFile.name;
+            BuildNewTexture(newSpriteFile);
         }
+        else if (newSpriteFile == null)
+        {
+            _offscreenTexture = null;
+        }
+
         _spriteFile = newSpriteFile;
 
         // Grid layout
@@ -48,34 +93,34 @@ public class TileWindow : EditorWindow
         EditorGUILayout.Space();
 
         _useFixedGrid = EditorGUILayout.BeginToggleGroup("Use fixed grid?", _useFixedGrid);
-        _gridWidth = EditorGUILayout.IntField("Grid Width", _gridWidth);
+        _gridWidth = EditorGUILayout.IntField("Grid Width", _gridWidth, GUILayout.Width(CONTROL_MAX_WIDTH));
         _gridWidth = _gridWidth < 1 ? 1 : _gridWidth;
-        _gridHeight = EditorGUILayout.IntField("Grid Height", _gridHeight);
+        _gridHeight = EditorGUILayout.IntField("Grid Height", _gridHeight, GUILayout.Width(CONTROL_MAX_WIDTH));
         _gridHeight = _gridHeight < 1 ? 1 : _gridHeight;
         EditorGUILayout.EndToggleGroup();
         
-        _startOffset = EditorGUILayout.Vector2Field("Grid Offset", _startOffset);
+        _startOffset = EditorGUILayout.Vector2Field("Grid Offset", _startOffset, GUILayout.Width(CONTROL_MAX_WIDTH));
         EditorGUILayout.Space();
 
-        _spriteAreaMargin = EditorGUILayout.Vector2IntField("Grid Area Margin", _spriteAreaMargin);
+        _spriteAreaMargin = EditorGUILayout.Vector2IntField("Grid Area Margin", _spriteAreaMargin, GUILayout.Width(CONTROL_MAX_WIDTH));
 
         // Sprite Details
         EditorGUILayout.Space(); EditorGUILayout.Space();
         EditorGUILayout.LabelField("Sprite Information", EditorStyles.boldLabel);
-        _defaultSpriteName = EditorGUILayout.TextField("Base Name", _defaultSpriteName);
+        _defaultSpriteName = EditorGUILayout.TextField("Base Name", _defaultSpriteName, GUILayout.Width(CONTROL_MAX_WIDTH));
 
         // Sprite size settings
-        _spriteWidth = EditorGUILayout.IntField("Slice Width", _spriteWidth);
+        _spriteWidth = EditorGUILayout.IntField("Slice Width", _spriteWidth, GUILayout.Width(CONTROL_MAX_WIDTH));
         _spriteWidth = _spriteWidth < 1 ? 1 : _spriteWidth;
-        _spriteHeight = EditorGUILayout.IntField("Slice Height", _spriteHeight);
+        _spriteHeight = EditorGUILayout.IntField("Slice Height", _spriteHeight, GUILayout.Width(CONTROL_MAX_WIDTH));
         _spriteHeight = _spriteHeight < 1 ? 1 : _spriteHeight;
         EditorGUILayout.Space();
 
-        _spriteBorders = EditorGUILayout.Vector2IntField("Sprite Borders", _spriteBorders);
+        _spriteBorders = EditorGUILayout.Vector2IntField("Sprite Borders", _spriteBorders, GUILayout.Width(CONTROL_MAX_WIDTH));
         EditorGUILayout.Space();
 
         // Sprite pivot settings
-        _spritePivot = EditorGUILayout.Vector2Field("Sprite Pivot", _spritePivot);
+        _spritePivot = EditorGUILayout.Vector2Field("Sprite Pivot", _spritePivot, GUILayout.Width(CONTROL_MAX_WIDTH));
         _spritePivot.x = Mathf.Clamp(_spritePivot.x, 0.0f, 1.0f);
         _spritePivot.y = Mathf.Clamp(_spritePivot.y, 0.0f, 1.0f);
 
@@ -86,11 +131,21 @@ public class TileWindow : EditorWindow
         {
             GUI.enabled = false;
         }
-        if (GUILayout.Button("Slice"))
+        if (GUILayout.Button("Slice", GUILayout.Width(CONTROL_MAX_WIDTH)))
         {
             SliceSprites();
         }
         GUI.enabled = oldGUIState;
+
+        if (_offscreenTexture)
+        {
+            var aspect = 1.0f / ((float)_spriteFile.width / _spriteFile.height);
+            var border = 20;
+            var width = WINDOW_WIDTH - (CONTROL_MAX_WIDTH + border * 2);
+            //EditorGUI.DrawPreviewTexture(new Rect(CONTROL_MAX_WIDTH + border, border, _spriteFile.width, _spriteFile.height) _offscreenTexture);
+            
+            EditorGUI.DrawPreviewTexture(new Rect(CONTROL_MAX_WIDTH + border, border, width , width * aspect), _offscreenTexture);
+        }
     }
 
     private bool CheckTexture()
@@ -106,19 +161,17 @@ public class TileWindow : EditorWindow
         AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
         var ready = false;
         Debug.Log("Attempting to force texture to be readable.");
-        while (!ready)
+        try
         {
-            try
-            {
-                _spriteFile.GetPixel(0, 0);
-                ready = true;
-            }
-            catch (UnityException)
-            {
-                ready = false;
-            }
+            _spriteFile.GetPixel(0, 0);
+            ready = true;
+            Debug.Log("Texture now readable.");
         }
-        Debug.Log("Texture now readable.");
+        catch (UnityException)
+        {
+            ready = false;
+            Debug.LogError("Texture readable flag not set.");
+        }
     }
 
     private bool SpriteIsEmpty(Rect spriteRect)

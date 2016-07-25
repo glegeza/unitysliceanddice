@@ -12,6 +12,7 @@ public class SpritePreprocessor : AssetPostprocessor
         {
             var importer = assetImporter as TextureImporter;
             importer.textureType = TextureImporterType.Sprite;
+            importer.isReadable = importer.isReadable;
             importer.mipmapEnabled = false;
             importer.spriteImportMode = SpriteImportMode.Multiple;
             importer.filterMode = FilterMode.Point;
