@@ -11,6 +11,7 @@ public class TileWindow : EditorWindow
     static Vector2Int MAX_VECTOR2 = new Vector2Int(Int32.MaxValue, Int32.MaxValue);
 
     RenderTexture _offscreenTexture;
+    Texture2D _savedTexture;
     Texture2D _spriteFile;
     int _spriteWidth;
     int _spriteHeight;
@@ -29,9 +30,11 @@ public class TileWindow : EditorWindow
     {
         var window = GetWindow(typeof(TileWindow));
         window.titleContent = new GUIContent("Tile Slicer");
-        window.maxSize = new Vector2(WINDOW_WIDTH, WINDOW_HEIGHT);
+        //window.maxSize = new Vector2(WINDOW_WIDTH, WINDOW_HEIGHT);
         window.minSize = new Vector2(WINDOW_WIDTH, WINDOW_HEIGHT);
     }
+
+
 
     private void BuildNewTexture(Texture2D texture)
     {
@@ -40,33 +43,42 @@ public class TileWindow : EditorWindow
             Debug.LogError("Attempting to build offscreen texture with no loaded texture.");
             return;
         }
-        Debug.LogFormat("{0}, {1}", texture.width, texture.height);
 
-        var cameraObj = new GameObject("Camera");
-        var camera = cameraObj.AddComponent<Camera>();
-        camera.transform.position = new Vector3(0.0f, 0.0f, -10.0f);
         _offscreenTexture = new RenderTexture(texture.width, texture.height, 24);
         _offscreenTexture.generateMips = false;
         _offscreenTexture.filterMode = FilterMode.Point;
+
+        var cameraObj = new GameObject("Camera");
+        var spriteObj = new GameObject("TextureObj");
+        var camera = cameraObj.AddComponent<Camera>();
+        camera.transform.position = new Vector3(0.0f, 0.0f, -10.0f);
         camera.targetTexture = _offscreenTexture;
         camera.orthographic = true;
         camera.aspect = (float)texture.width / texture.height;
-        camera.orthographicSize = texture.width / 2.0f;
+        camera.orthographicSize = texture.height / 2.0f;
         camera.backgroundColor = Color.clear;
         camera.clearFlags = CameraClearFlags.SolidColor;
-        Debug.LogFormat("{0}, {1}, {2}", camera.orthographicSize, camera.pixelWidth, camera.pixelHeight);
-        var spriteObj = new GameObject("TextureObj");
         spriteObj.transform.position = Vector3.zero;
         spriteObj.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
         var renderer = spriteObj.AddComponent<SpriteRenderer>();
         var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f), 1.0f);
-        Debug.LogFormat("{0}x{1}", sprite.rect.width, sprite.rect.height);
         renderer.sprite = sprite;
-        camera.Render();
-        camera.targetTexture = null;
 
-        DestroyImmediate(cameraObj);
-        DestroyImmediate(spriteObj);
+        try
+        {
+            camera.Render();
+            RenderTexture.active = _offscreenTexture;
+            _savedTexture = new Texture2D(texture.width, texture.height);
+            _savedTexture.filterMode = FilterMode.Point;
+            _savedTexture.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0);
+            _savedTexture.Apply();
+            RenderTexture.active = null;
+        }
+        finally
+        {
+            DestroyImmediate(cameraObj);
+            DestroyImmediate(spriteObj);
+        }
     }
 
     private void OnGUI()
@@ -83,6 +95,7 @@ public class TileWindow : EditorWindow
         else if (newSpriteFile == null)
         {
             _offscreenTexture = null;
+            _savedTexture = null;
         }
 
         _spriteFile = newSpriteFile;
@@ -137,20 +150,27 @@ public class TileWindow : EditorWindow
         }
         GUI.enabled = oldGUIState;
 
-        if (_offscreenTexture)
+        if (_spriteFile)
         {
             var aspect = 1.0f / ((float)_spriteFile.width / _spriteFile.height);
             var border = 20;
-            var width = WINDOW_WIDTH - (CONTROL_MAX_WIDTH + border * 2);
-            //EditorGUI.DrawPreviewTexture(new Rect(CONTROL_MAX_WIDTH + border, border, _spriteFile.width, _spriteFile.height) _offscreenTexture);
-            
-            EditorGUI.DrawPreviewTexture(new Rect(CONTROL_MAX_WIDTH + border, border, width , width * aspect), _offscreenTexture);
+            var window = GetWindow(typeof(TileWindow));
+            var width = window.position.width - (CONTROL_MAX_WIDTH + border * 2);
+            var height = width * aspect;
+            var max_height = window.position.height - border * 2;
+            if (height > max_height)
+            {
+                height = max_height;
+                width = max_height / aspect;
+            }
+           
+            EditorGUI.DrawTextureTransparent(new Rect(CONTROL_MAX_WIDTH + border, border, width , height), _spriteFile);
         }
     }
 
     private bool CheckTexture()
     {
-        return _spriteFile != null;
+        return _offscreenTexture != null && _savedTexture != null;
     }
 
     private void ForceReadable()
@@ -180,7 +200,7 @@ public class TileWindow : EditorWindow
         {
             for (int py = (int)spriteRect.yMin; py < spriteRect.yMax; py++)
             {
-                var color = _spriteFile.GetPixel(px, py);
+                var color = _savedTexture.GetPixel(px, py);
                 if (color.a > 0.001f)
                 {
                     return false;
