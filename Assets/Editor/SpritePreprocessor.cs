@@ -6,13 +6,16 @@ public class SpritePreprocessor : AssetPostprocessor
     private string ProcessedTag = "processed";
     private string PathName = "Sprites";
 
-	void OnPreprocessTexture()
+    void OnPreprocessTexture()
     {
         if (assetPath.Contains(PathName))
         {
             var importer = assetImporter as TextureImporter;
+            if (importer.userData == ProcessedTag)
+            {
+                return;
+            }
             importer.textureType = TextureImporterType.Sprite;
-            importer.isReadable = importer.isReadable;
             importer.mipmapEnabled = false;
             importer.spriteImportMode = SpriteImportMode.Multiple;
             importer.filterMode = FilterMode.Point;
