@@ -313,6 +313,14 @@ public class TileWindow : EditorWindow
         if (_sheetData.RequiresUpdate)
         {
             _sheetData.UpdateData();
+            if (_sheetData.Ready)
+            {
+                BuildPreviewTexture();
+            }
+            else
+            {
+                _slicePreview = null;
+            }
         }
 
         if (_sheetData.Texture)
@@ -328,8 +336,13 @@ public class TileWindow : EditorWindow
                 height = max_height;
                 width = max_height / aspect;
             }
-           
-            EditorGUI.DrawTextureTransparent(new Rect(CONTROL_MAX_WIDTH + border, border, width, height), _sheetData.Texture);
+            if (_slicePreview)
+            {
+                GUI.depth = 0;
+                EditorGUI.DrawTextureTransparent(new Rect(CONTROL_MAX_WIDTH + border, border, width, height), _slicePreview);
+            }
+            GUI.depth = 1;
+            //EditorGUI.DrawTextureTransparent(new Rect(CONTROL_MAX_WIDTH + border, border, width, height), _sheetData.Texture);
         }
     }
 
@@ -435,22 +448,39 @@ public class TileWindow : EditorWindow
                 fill[py * _sheetData.TextureWidth + px] = new Color32(255, 0, 0, 255);
             }
         }
-        var startY = _sheetData.SpriteAreaRect.yMax;
-        var startX = _sheetData.SpriteAreaRect.xMin;
+
+        // Create color blocks
+        var blockA = new Color32[_sheetData.SpriteSize.Width * _sheetData.SpriteSize.Height];
+        var blockB = new Color32[_sheetData.SpriteSize.Width * _sheetData.SpriteSize.Height];
+        for (int p = 0; p < _sheetData.SpriteSize.Width * _sheetData.SpriteSize.Height; p++)
+        {
+            blockA[p] = new Color32(0, 255, 0, 255);
+            blockB[p] = new Color32(0, 0, 255, 255);
+        }
+
+        _slicePreview = new Texture2D(_sheetData.TextureWidth, _sheetData.TextureHeight);
+        _slicePreview.filterMode = FilterMode.Point;
+        _slicePreview.SetPixels32(fill);
+        var startY = _sheetData.SpriteAreaMargin.y;
+        var startX = _sheetData.SpriteAreaMargin.x;
         var color = Color.black;
         var x = startX;
         var y = startY;
-        for (var gridX = 0; gridX < _sheetData.GridSize.Width; gridX++)
+        var useBlockA = true;
+        var prevStart = true;
+        for (var gridX = 0; gridX < _sheetData.GridSize.Width - 1; gridX++)
         {
-            for (var gridY = 0; gridY < _sheetData.GridSize.Height; gridY++)
+            for (var gridY = 0; gridY < _sheetData.GridSize.Height - 1; gridY++)
             {
-
+                _slicePreview.SetPixels32(x, y, _sheetData.SpriteSize.Width, _sheetData.SpriteSize.Height, useBlockA ? blockA : blockB);
+                useBlockA = !useBlockA;
                 y += _sheetData.Advance.y;
             }
             y = startY;
             x += _sheetData.Advance.x;
+            useBlockA = !prevStart;
+            prevStart = useBlockA;
         }
-        _slicePreview = new Texture2D(_sheetData.TextureWidth, _sheetData.TextureHeight);
-        _slicePreview.filterMode = FilterMode.Point;
+        _slicePreview.Apply();
     }
 }
